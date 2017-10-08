@@ -16,9 +16,9 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -84,7 +84,13 @@ public class MainActivity extends AppCompatActivity {
 
         listView = (ListView) findViewById(R.id.list_view_position);
         adapter = new PositionAdapter();
+
+        List<PositionItem> positionItems = PositionItem.listAll(PositionItem.class);
+        adapter.data.addAll(positionItems);
+
+        Log.i(getClass().getName(), "Loaded " + adapter.data.size() + " items from database");
         listView.setAdapter(adapter);
+
     }
 
     @Override
@@ -218,13 +224,15 @@ public class MainActivity extends AppCompatActivity {
 
                                     for(PositionItem item: adapter.data) {
                                         if(item.name.equals(txt)) {
-                                            item.location = location;
+                                            item.setLocation(location);
+                                            item.save();
                                             adapter.notifyDataSetChanged();
                                             return;
                                         }
                                     }
 
                                     PositionItem item = PositionItem.create(txt, location);
+                                    item.save();
 
                                     Intent intent = new Intent(MainActivity.this, FetchAddressIntentService.class);
                                     intent.putExtra(FetchAddressIntentService.Constants.RECEIVER, new AddressResultReceiver(new Handler(getMainLooper()), item));
@@ -397,6 +405,7 @@ public class MainActivity extends AppCompatActivity {
             // or an error message sent from the intent service.
             String mAddressOutput = resultData.getString(FetchAddressIntentService.Constants.RESULT_DATA_KEY);
             item.setAdress(mAddressOutput);
+            item.save();
 
             adapter.notifyDataSetChanged();
             // Show a toast message if an address was found.

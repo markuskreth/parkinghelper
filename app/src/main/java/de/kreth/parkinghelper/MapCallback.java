@@ -25,9 +25,9 @@ public class MapCallback implements OnMapReadyCallback {
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        Log.d(getClass().getName(), "Fetching marker for location " + item.location);
+        Log.d(getClass().getName(), "Fetching marker for location " + item.getLocation());
         initMap(googleMap);
-        LatLng latLng = new LatLng(item.location.getLatitude(), item.location.getLongitude());
+        LatLng latLng = new LatLng(item.getLocation().getLatitude(), item.getLocation().getLongitude());
         MarkerOptions opts = new MarkerOptions()
                 .position(latLng)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))

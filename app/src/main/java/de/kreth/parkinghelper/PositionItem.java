@@ -3,35 +3,32 @@ package de.kreth.parkinghelper;
 import android.location.Location;
 import android.support.annotation.NonNull;
 
+import com.orm.SugarRecord;
+
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by markus.kreth on 06.10.2017.
  */
-public class PositionItem {
+public class PositionItem extends SugarRecord<PositionItem> {
 
-    private static AtomicLong lastId = new AtomicLong(1);
-
-    long id;
-    String name;
-    Location location;
+    @NonNull String name;
+    private double longitude;
+    private double latitude;
+    String adress = null;
 
     public static PositionItem create(@NonNull String name, @NonNull Location location) {
-        return new PositionItem(lastId.incrementAndGet(), name, location);
+        return new PositionItem(name, location);
     }
 
-    public static PositionItem create(long id, @NonNull String name, @NonNull Location location) {
-        if(id > lastId.longValue()) {
-            lastId.set(id);
-        }
-        return new PositionItem(id, name, location);
+    public PositionItem() {
     }
 
-    private PositionItem(long id, String name, Location location) {
-        this.id = id;
+    public PositionItem(String name, Location location) {
         this.name = name;
-        this.location = location;
+        longitude = location.getLongitude();
+        latitude = location.getLatitude();
     }
 
     public String getName() {
@@ -39,16 +36,19 @@ public class PositionItem {
     }
 
     public Location getLocation() {
+
+        Location location = new Location("");
+        location.setLatitude(latitude);
+        location.setLongitude(longitude);
         return location;
     }
 
-    public long getId() {
-        return id;
+    public synchronized void setAdress(String adress) {
+        this.adress = adress;
     }
 
-    @Override
-    public String toString() {
-        return name + ": " + location;
+    public String getAdress() {
+        return adress;
     }
 
     @Override
@@ -56,19 +56,35 @@ public class PositionItem {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        PositionItem that = (PositionItem) o;
+        PositionItem item = (PositionItem) o;
 
-        if (id != that.id) return false;
-        if (!name.equals(that.name)) return false;
-        return location.equals(that.location);
+        if (Double.compare(item.longitude, longitude) != 0) return false;
+        if (Double.compare(item.latitude, latitude) != 0) return false;
+        if (!name.equals(item.name)) return false;
+        return adress != null ? adress.equals(item.adress) : item.adress == null;
 
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (id ^ (id >>> 32));
-        result = 31 * result + name.hashCode();
-        result = 31 * result + location.hashCode();
+        int result;
+        long temp;
+        result = name.hashCode();
+        temp = Double.doubleToLongBits(longitude);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(latitude);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + (adress != null ? adress.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return name + ": " + getLocation();
+    }
+
+    public void setLocation(@NonNull Location location) {
+        longitude = location.getLongitude();
+        latitude = location.getLatitude();
     }
 }
