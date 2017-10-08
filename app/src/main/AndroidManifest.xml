@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="de.kreth.parkinghelper">
 
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -19,9 +21,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyC3BAZob0hwbxK2WgecavEj429f7RuJWfk"/>
+            android:value="AIzaSyC3BAZob0hwbxK2WgecavEj429f7RuJWfk" />
+        <meta-data
+            android:name="API_KEY"
+            android:value="AIzaSyC3BAZob0hwbxK2WgecavEj429f7RuJWfk" />
+
+        <service
+            android:name=".FetchAddressIntentService"
+            android:exported="false"></service>
     </application>
 
 </manifest>
