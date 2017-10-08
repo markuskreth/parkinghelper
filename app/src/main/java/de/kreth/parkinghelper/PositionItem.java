@@ -35,14 +35,6 @@ public class PositionItem extends SugarRecord<PositionItem> {
         return name;
     }
 
-    public Location getLocation() {
-
-        Location location = new Location("");
-        location.setLatitude(latitude);
-        location.setLongitude(longitude);
-        return location;
-    }
-
     public synchronized void setAdress(String adress) {
         this.adress = adress;
     }
@@ -80,11 +72,19 @@ public class PositionItem extends SugarRecord<PositionItem> {
 
     @Override
     public String toString() {
-        return name + ": " + getLocation();
+        return name + ": " + latitude + ":" + longitude;
     }
 
     public void setLocation(@NonNull Location location) {
         longitude = location.getLongitude();
         latitude = location.getLatitude();
+    }
+
+    public double getLatitude() {
+        return latitude;
+    }
+
+    public double getLongitude() {
+        return longitude;
     }
 }

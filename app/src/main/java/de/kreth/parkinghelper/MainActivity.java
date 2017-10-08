@@ -14,6 +14,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.os.ResultReceiver;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.PopupMenu;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
@@ -311,6 +312,9 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public PositionItem getItem(int position) {
+            if(position<0 || position>=data.size()) {
+                return null;
+            }
             return data.get(position);
         }
 
@@ -345,16 +349,35 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public boolean onLongClick(View v) {
 
-                    StringBuilder geo = new StringBuilder("geo:");
-                    geo.append(item.getLocation().getLatitude());
-                    geo.append(',');
-                    geo.append(item.getLocation().getLongitude());
-                    Uri gmmIntentUri = Uri.parse(geo.toString());
-                    Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
-                    mapIntent.setPackage("com.google.android.apps.maps");
-                    if (mapIntent.resolveActivity(getPackageManager()) != null) {
-                        startActivity(mapIntent);
-                    }
+                    PopupMenu m = new PopupMenu(MainActivity.this, v);
+                    m.getMenuInflater().inflate(R.menu.item_menu, m.getMenu());
+                    m.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+                        @Override
+                        public boolean onMenuItemClick(MenuItem menuItemitem) {
+                            switch (menuItemitem.getItemId()) {
+                                case R.id.delete_item:
+                                    item.delete();
+                                    adapter.data.remove(item);
+                                    adapter.notifyDataSetChanged();
+                                    break;
+                                case R.id.open_in_maps:
+                                    StringBuilder geo = new StringBuilder("geo:");
+                                    geo.append(item.getLatitude());
+                                    geo.append(',');
+                                    geo.append(item.getLongitude());
+                                    Uri gmmIntentUri = Uri.parse(geo.toString());
+                                    Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+                                    mapIntent.setPackage("com.google.android.apps.maps");
+                                    if (mapIntent.resolveActivity(getPackageManager()) != null) {
+                                        startActivity(mapIntent);
+                                    }
+                                    break;
+                            }
+                            return false;
+                        }
+                    });
+                    m.show();
+
                     return true;
                 }
             });
@@ -372,12 +395,10 @@ public class MainActivity extends AppCompatActivity {
 
             void update(final PositionItem item) {
 
-                final Location loc = item.getLocation();
-
                 StringBuilder desc = new StringBuilder()
-                        .append(loc.getLongitude())
+                        .append(item.getLongitude())
                         .append(":")
-                        .append(loc.getLatitude());
+                        .append(item.getLatitude());
 
                 if(item.adress != null) {
                     desc.append("\n").append(item.getAdress());
