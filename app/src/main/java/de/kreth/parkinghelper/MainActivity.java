@@ -7,9 +7,11 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.os.ResultReceiver;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -25,6 +27,7 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -114,6 +117,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         initMapLocation();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        map.onPause();
     }
 
     private void initMapLocation() {
@@ -216,6 +225,11 @@ public class MainActivity extends AppCompatActivity {
                                     }
 
                                     PositionItem item = PositionItem.create(txt, location);
+
+                                    Intent intent = new Intent(MainActivity.this, FetchAddressIntentService.class);
+                                    intent.putExtra(FetchAddressIntentService.Constants.RECEIVER, new AddressResultReceiver(new Handler(getMainLooper()), item));
+                                    intent.putExtra(FetchAddressIntentService.Constants.LOCATION_DATA_EXTRA, location);
+                                    startService(intent);
                                     adapter.add(item);
                                 }
                             }).show();
@@ -357,7 +371,9 @@ public class MainActivity extends AppCompatActivity {
                         .append(":")
                         .append(loc.getLatitude());
 
-                // TODO Adress loading
+                if(item.adress != null) {
+                    desc.append("\n").append(item.getAdress());
+                }
                 caption.setText(item.getName());
                 description.setText(desc);
 
@@ -365,25 +381,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-//    class AddressResultReceiver extends ResultReceiver {
-//
-//        public AddressResultReceiver(Handler handler) {
-//            super(handler);
-//        }
-//
-//        @Override
-//        protected void onReceiveResult(int resultCode, Bundle resultData) {
-//
-//            // Display the address string
-//            // or an error message sent from the intent service.
-//            mAddressOutput = resultData.getString(FetchAddressIntentService.Constants.RESULT_DATA_KEY);
-//            displayAddressOutput();
-//
-//            // Show a toast message if an address was found.
-//            if (resultCode == FetchAddressIntentService.Constants.SUCCESS_RESULT) {
-//                showToast(getString(R.string.address_found));
-//            }
-//
-//        }
-//    }
+    public class AddressResultReceiver extends ResultReceiver {
+
+        private final PositionItem item;
+
+        public AddressResultReceiver(Handler handler, PositionItem item) {
+            super(handler);
+            this.item = item;
+        }
+
+        @Override
+        protected void onReceiveResult(int resultCode, Bundle resultData) {
+
+            // Display the address string
+            // or an error message sent from the intent service.
+            String mAddressOutput = resultData.getString(FetchAddressIntentService.Constants.RESULT_DATA_KEY);
+            item.setAdress(mAddressOutput);
+
+            adapter.notifyDataSetChanged();
+            // Show a toast message if an address was found.
+            if (resultCode == FetchAddressIntentService.Constants.SUCCESS_RESULT) {
+                Toast.makeText(MainActivity.this, "Adress found!", Toast.LENGTH_SHORT);
+            }
+
+        }
+    }
 }

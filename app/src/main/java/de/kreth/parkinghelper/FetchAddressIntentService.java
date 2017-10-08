@@ -7,7 +7,7 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
-import android.os.ResultReceiver;
+import android.support.v4.os.ResultReceiver;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -42,6 +42,7 @@ public class FetchAddressIntentService extends IntentService {
             // Get the location passed to this service through an extra.
             Location location = intent.getParcelableExtra(
                     Constants.LOCATION_DATA_EXTRA);
+            mReceiver = intent.getParcelableExtra(Constants.RECEIVER);
 
             List<Address> addresses = null;
             try {
