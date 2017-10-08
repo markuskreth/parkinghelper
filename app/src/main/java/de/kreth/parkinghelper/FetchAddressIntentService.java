@@ -64,7 +64,7 @@ public class FetchAddressIntentService extends IntentService {
             }
             if (addresses == null || addresses.size()  == 0) {
                 if (errorMessage.isEmpty()) {
-                    errorMessage = getString(R.string.no_address_found);
+                    errorMessage = "Adress not found";
                     Log.e(TAG, errorMessage);
                 }
                 deliverResultToReceiver(Constants.FAILURE_RESULT, errorMessage);
@@ -77,7 +77,7 @@ public class FetchAddressIntentService extends IntentService {
                 for(int i = 0; i <= address.getMaxAddressLineIndex(); i++) {
                     addressFragments.add(address.getAddressLine(i));
                 }
-                Log.i(TAG, getString(R.string.address_found));
+                Log.i(TAG, "Adress found");
                 deliverResultToReceiver(Constants.SUCCESS_RESULT,
                         TextUtils.join(System.getProperty("line.separator"),
                                 addressFragments));

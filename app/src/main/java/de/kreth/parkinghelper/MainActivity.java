@@ -7,15 +7,12 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.ResultReceiver;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.InputType;
 import android.util.Log;
 import android.view.View;
 import android.view.Menu;
@@ -26,9 +23,7 @@ import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.SimpleAdapter;
 import android.widget.Spinner;
-import android.widget.SpinnerAdapter;
 import android.widget.TextView;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -36,24 +31,26 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.MapsInitializer;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.zip.Inflater;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 13;
+    private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_STORAGE = 13;
+    private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_MAP_INIT = 14;
 
     private int count = 0;
     private PositionAdapter adapter;
     private FusedLocationProviderClient mFusedLocationClient;
+    private MapView map;
+    private ListView listView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,9 +75,75 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        ListView listView = (ListView) findViewById(R.id.list_view_position);
+        map = (MapView) findViewById(R.id.mapView);
+        map.onCreate(savedInstanceState);
+        MapsInitializer.initialize(this);
+
+        listView = (ListView) findViewById(R.id.list_view_position);
         adapter = new PositionAdapter();
         listView.setAdapter(adapter);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        map.onResume();
+
+        int selectedIndex = listView.getSelectedItemPosition();
+        if (selectedIndex >= 0) {
+            PositionItem item = adapter.getItem(selectedIndex);
+            map.getMapAsync(new MapCallback(item));
+            return;
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            Log.d(getClass().getName(), "Permission not granted");
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)) {
+                new AlertDialog.Builder(this).setMessage("Location permission needed").setPositiveButton("OK", null).show();
+            } else {
+                Log.v(getClass().getName(), "Sending permission request");
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_MAP_INIT);
+            }
+            return;
+        }
+        initMapLocation();
+    }
+
+    private void initMapLocation() {
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        mFusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+            @Override
+            public void onSuccess(final Location location) {
+                map.getMapAsync(new OnMapReadyCallback() {
+                    @Override
+                    public void onMapReady(GoogleMap googleMap) {
+                        MapCallback.initMap(googleMap);
+                        if (location != null) {
+                            LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+
+                            MarkerOptions opts = new MarkerOptions()
+                                    .position(latLng)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                                    .title("You are here")
+                                    .visible(true);
+                            googleMap.addMarker(opts);
+                            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, MapCallback.DEFAULT_ZOOM_LEVEL));
+                        }
+                    }
+                });
+            }
+        });
     }
 
     private void storeCurrentPosition() {
@@ -98,13 +161,14 @@ public class MainActivity extends AppCompatActivity {
                 Log.v(getClass().getName(), "Sending permission request");
                 ActivityCompat.requestPermissions(MainActivity.this,
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+                        MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_STORAGE);
             }
             return;
         }
         Log.v(getClass().getName(), "getting last location");
 
-        mFusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+        mFusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
 
             @Override
             public void onSuccess(final Location location) {
@@ -192,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: {
+            case MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_STORAGE: {
 
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -213,7 +277,6 @@ public class MainActivity extends AppCompatActivity {
         private final List<PositionItem> data = new ArrayList<>();
 
         public void add (PositionItem item) {
-
             data.add(item);
             Log.d(getClass().getName(), "Added item " + item);
             notifyDataSetChanged();
@@ -236,10 +299,13 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
+
             LayoutHolder holder;
+
             if(convertView == null) {
                 convertView = getLayoutInflater().inflate(R.layout.position_item_layout, null);
                 holder = new LayoutHolder(convertView);
+
                 convertView.setTag(holder);
             } else {
                 holder = (LayoutHolder) convertView.getTag();
@@ -250,6 +316,13 @@ public class MainActivity extends AppCompatActivity {
             convertView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    map.getMapAsync(new MapCallback(item));
+                }
+            });
+            convertView.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+
                     StringBuilder geo = new StringBuilder("geo:");
                     geo.append(item.getLocation().getLatitude());
                     geo.append(',');
@@ -260,6 +333,7 @@ public class MainActivity extends AppCompatActivity {
                     if (mapIntent.resolveActivity(getPackageManager()) != null) {
                         startActivity(mapIntent);
                     }
+                    return true;
                 }
             });
             return convertView;
@@ -268,12 +342,10 @@ public class MainActivity extends AppCompatActivity {
         private class LayoutHolder {
             private final TextView caption;
             private final TextView description;
-            private final MapView map;
 
             public LayoutHolder(View convertView) {
                 caption = convertView.findViewById(R.id.textViewCaption);
                 description = convertView.findViewById(R.id.textViewDescription);
-                map = convertView.findViewById(R.id.mapView);
             }
 
             void update(final PositionItem item) {
@@ -282,51 +354,36 @@ public class MainActivity extends AppCompatActivity {
 
                 StringBuilder desc = new StringBuilder()
                         .append(loc.getLongitude())
-                        .append("\n")
+                        .append(":")
                         .append(loc.getLatitude());
 
+                // TODO Adress loading
                 caption.setText(item.getName());
                 description.setText(desc);
 
-                OnMapReadyCallback mapReadyCallback = new OnMapReadyCallback() {
-
-                    @Override
-                    public void onMapReady(GoogleMap googleMap) {
-                        Log.d(getClass().getName(), "Fetching marker for location " + loc);
-                        googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-                        LatLng latLng = new LatLng(loc.getLatitude(), loc.getLongitude());
-                        MarkerOptions opts = new MarkerOptions()
-                                .position(latLng)
-                                .title(item.getName())
-                                .visible(true);
-                        googleMap.addMarker(opts);
-                        googleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-                    }
-                };
-
-                map.getMapAsync(mapReadyCallback);
             }
         }
     }
-    class AddressResultReceiver extends ResultReceiver {
 
-        public AddressResultReceiver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        protected void onReceiveResult(int resultCode, Bundle resultData) {
-
-            // Display the address string
-            // or an error message sent from the intent service.
-            mAddressOutput = resultData.getString(FetchAddressIntentService.Constants.RESULT_DATA_KEY);
-            displayAddressOutput();
-
-            // Show a toast message if an address was found.
-            if (resultCode == FetchAddressIntentService.Constants.SUCCESS_RESULT) {
-                showToast(getString(R.string.address_found));
-            }
-
-        }
-    }
+//    class AddressResultReceiver extends ResultReceiver {
+//
+//        public AddressResultReceiver(Handler handler) {
+//            super(handler);
+//        }
+//
+//        @Override
+//        protected void onReceiveResult(int resultCode, Bundle resultData) {
+//
+//            // Display the address string
+//            // or an error message sent from the intent service.
+//            mAddressOutput = resultData.getString(FetchAddressIntentService.Constants.RESULT_DATA_KEY);
+//            displayAddressOutput();
+//
+//            // Show a toast message if an address was found.
+//            if (resultCode == FetchAddressIntentService.Constants.SUCCESS_RESULT) {
+//                showToast(getString(R.string.address_found));
+//            }
+//
+//        }
+//    }
 }
