@@ -2,8 +2,12 @@ package de.kreth.parkinghelper;
 
 import android.location.Location;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.orm.SugarRecord;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -70,6 +74,22 @@ public class PositionItem extends SugarRecord<PositionItem> {
         return result;
     }
 
+    public String toJson() {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("name", name);
+            json.put("latitude", latitude);
+            json.put("longitude", longitude);
+            json.put("longitude", longitude);
+            if(adress != null) {
+                json.put("adress", adress);
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return json.toString();
+    }
+
     @Override
     public String toString() {
         return name + ": " + latitude + ":" + longitude;
@@ -80,11 +100,37 @@ public class PositionItem extends SugarRecord<PositionItem> {
         latitude = location.getLatitude();
     }
 
+    public void setLatitude(double latitude) {
+        this.latitude = latitude;
+    }
+
+    public void setLongitude(double longitude) {
+        this.longitude = longitude;
+    }
+
     public double getLatitude() {
         return latitude;
     }
 
     public double getLongitude() {
         return longitude;
+    }
+
+    public static PositionItem fromJson(CharSequence json) {
+        PositionItem item;
+        try {
+            JSONObject jsonObject = new JSONObject(json.toString());
+            item = new PositionItem();
+            item.name = jsonObject.getString("name");
+            item.longitude = jsonObject.getDouble("longitude");
+            item.latitude = jsonObject.getDouble("latitude");
+            if(jsonObject.has("adress")) {
+                item.adress = jsonObject.getString("adress");
+            }
+        } catch (JSONException e) {
+            item = null;
+            Log.e(PositionItem.class.getName(), "Error creating object from json", e);
+        }
+        return item;
     }
 }

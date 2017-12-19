@@ -39,16 +39,15 @@ public class FetchAddressIntentService extends IntentService {
         if (intent != null) {
             String errorMessage = "";
 
-            // Get the location passed to this service through an extra.
-            Location location = intent.getParcelableExtra(
-                    Constants.LOCATION_DATA_EXTRA);
+            double longitude = intent.getDoubleExtra(Constants.LOCATION_DATA_EXTRA_LON, 0);
+            double latitude = intent.getDoubleExtra(Constants.LOCATION_DATA_EXTRA_LAT, 0);
             mReceiver = intent.getParcelableExtra(Constants.RECEIVER);
 
             List<Address> addresses = null;
             try {
                 addresses = geocoder.getFromLocation(
-                        location.getLatitude(),
-                        location.getLongitude(),
+                        latitude,
+                        longitude,
                         // In this sample, get just a single address.
                         1);
             } catch (IOException ioException) {
@@ -59,9 +58,9 @@ public class FetchAddressIntentService extends IntentService {
                 // Catch invalid latitude or longitude values.
                 errorMessage = "ungültige Koordinaten";
                 Log.e(getClass().getName(), errorMessage + ". " +
-                        "Latitude = " + location.getLatitude() +
+                        "Latitude = " + latitude +
                         ", Longitude = " +
-                        location.getLongitude(), illegalArgumentException);
+                        longitude, illegalArgumentException);
             }
             if (addresses == null || addresses.size()  == 0) {
                 if (errorMessage.isEmpty()) {
@@ -100,7 +99,9 @@ public class FetchAddressIntentService extends IntentService {
         public static final String RECEIVER = PACKAGE_NAME + ".RECEIVER";
         public static final String RESULT_DATA_KEY = PACKAGE_NAME +
                 ".RESULT_DATA_KEY";
-        public static final String LOCATION_DATA_EXTRA = PACKAGE_NAME +
-                ".LOCATION_DATA_EXTRA";
+        public static final String LOCATION_DATA_EXTRA_LON = PACKAGE_NAME +
+                ".LOCATION_DATA_EXTRA_LONGITUDE";
+        public static final String LOCATION_DATA_EXTRA_LAT = PACKAGE_NAME +
+                ".LOCATION_DATA_EXTRA_LATITUDE";
     }
 }

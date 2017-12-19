@@ -32,8 +32,10 @@ public class MapCallback implements OnMapReadyCallback {
                 .position(latLng)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
                 .title("Location: " + item.getName())
+                .draggable(false)
                 .visible(true);
         googleMap.addMarker(opts);
+
         googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, DEFAULT_ZOOM_LEVEL));
         //googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, DEFAULT_ZOOM_LEVEL));
 

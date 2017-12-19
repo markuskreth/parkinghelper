@@ -6,6 +6,9 @@
         android:id="@+id/delete_item"
         android:title="delete" />
     <item
+        android:id="@+id/copy_item"
+        android:title="copy" />
+    <item
         android:id="@+id/open_in_maps"
         android:title="openMaps" />
 </menu>

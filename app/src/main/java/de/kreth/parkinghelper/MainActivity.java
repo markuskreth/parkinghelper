@@ -1,8 +1,12 @@
 package de.kreth.parkinghelper;
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
@@ -30,8 +34,18 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
@@ -40,19 +54,24 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_STORAGE = 13;
     private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_MAP_INIT = 14;
+    private static final CharSequence COPY_LOCATION_ITEM = "COPY_LOCATION_ITEM_KEY";
 
     private int count = 0;
     private PositionAdapter adapter;
     private FusedLocationProviderClient mFusedLocationClient;
+    private ClipboardManager clipboardManager;
     private MapView map;
     private ListView listView;
 
@@ -67,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        clipboardManager = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -104,7 +124,6 @@ public class MainActivity extends AppCompatActivity {
         if (selectedIndex >= 0) {
             PositionItem item = adapter.getItem(selectedIndex);
             map.getMapAsync(new MapCallback(item));
-            return;
         }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
@@ -123,7 +142,42 @@ public class MainActivity extends AppCompatActivity {
             }
             return;
         }
-        initMapLocation();
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        builder.addLocationRequest(createLocationRequest());
+        SettingsClient client = LocationServices.getSettingsClient(this);
+        Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+        task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
+            @Override
+            public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                Log.i(getClass().getName(), "Gps available.");
+                initMapLocation();
+            }
+        });
+        task.addOnFailureListener(this, new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                int statusCode = ((ApiException) e).getStatusCode();
+                switch (statusCode) {
+                    case CommonStatusCodes.RESOLUTION_REQUIRED:
+                        Log.w(getClass().getName(), "Gps not available, starting User request.");
+                        try {
+                            // Show the dialog by calling startResolutionForResult(),
+                            // and check the result in onActivityResult().
+                            ResolvableApiException resolvable = (ResolvableApiException) e;
+                            resolvable.startResolutionForResult(MainActivity.this,
+                                    MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_MAP_INIT);
+                        } catch (IntentSender.SendIntentException sendEx) {
+                            // Ignore the error.
+                        }
+                        break;
+                    case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        Log.e(getClass().getName(), "Gps not available, unable to start Dialog.");
+                        break;
+                }
+            }
+        });
+
+//        Log.i(getClass().getName(), "Gps usable: " + task.getResult().getLocationSettingsStates().isGpsUsable());
     }
 
     @Override
@@ -138,7 +192,7 @@ public class MainActivity extends AppCompatActivity {
                 && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        mFusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+        final OnSuccessListener<Location> onSuccessListener = new OnSuccessListener<Location>() {
             @Override
             public void onSuccess(final Location location) {
                 map.getMapAsync(new OnMapReadyCallback() {
@@ -159,7 +213,25 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-        });
+        };
+
+        LocationCallback callback = new LocationCallback(){
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Log.d(getClass().getName(), "Got locations: " + locationResult.getLocations());
+                onSuccessListener.onSuccess(locationResult.getLastLocation());
+                mFusedLocationClient.removeLocationUpdates(this);
+            }
+        };
+
+        mFusedLocationClient.requestLocationUpdates(createLocationRequest(), callback, getMainLooper());
+
+    }
+
+    @NonNull
+    private LocationRequest createLocationRequest() {
+        return LocationRequest.create().setNumUpdates(1).setInterval(5).setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
     private void storeCurrentPosition() {
@@ -183,13 +255,12 @@ public class MainActivity extends AppCompatActivity {
         }
         Log.v(getClass().getName(), "getting last location");
 
-        mFusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+        final OnSuccessListener<Location> onSuccessListener = new OnSuccessListener<Location>() {
 
             @Override
             public void onSuccess(final Location location) {
                 Log.v(getClass().getName(), "Location fetched: " + location);
-                if(location != null) {
+                if (location != null) {
 
                     final View nameDialog = getLayoutInflater().inflate(R.layout.name_dialog, null);
                     final Spinner preselect = nameDialog.findViewById(R.id.spinner);
@@ -197,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
 
                     final ArrayAdapter<String> spAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item);
                     preselect.setAdapter(spAdapter);
-                    for(PositionItem pos: adapter.data) {
+                    for (PositionItem pos : adapter.data) {
                         spAdapter.add(pos.getName());
                     }
                     preselect.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -223,23 +294,23 @@ public class MainActivity extends AppCompatActivity {
                                         txt = "Custom " + count;
                                     }
 
-                                    for(PositionItem item: adapter.data) {
-                                        if(item.name.equals(txt)) {
+                                    for (PositionItem item : adapter.data) {
+                                        if (item.name.equals(txt)) {
                                             item.setLocation(location);
                                             item.save();
                                             adapter.notifyDataSetChanged();
+
+                                            fetchAdress(item);
                                             return;
                                         }
                                     }
 
                                     PositionItem item = PositionItem.create(txt, location);
                                     item.save();
-
-                                    Intent intent = new Intent(MainActivity.this, FetchAddressIntentService.class);
-                                    intent.putExtra(FetchAddressIntentService.Constants.RECEIVER, new AddressResultReceiver(new Handler(getMainLooper()), item));
-                                    intent.putExtra(FetchAddressIntentService.Constants.LOCATION_DATA_EXTRA, location);
-                                    startService(intent);
                                     adapter.add(item);
+
+                                    fetchAdress(item);
+
                                 }
                             }).show();
                 } else {
@@ -250,8 +321,28 @@ public class MainActivity extends AppCompatActivity {
                             .setPositiveButton("OK", null).show();
                 }
             }
-        });
+        };
 
+        LocationCallback callback = new LocationCallback(){
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Log.d(getClass().getName(), "Got locations: " + locationResult.getLocations());
+                onSuccessListener.onSuccess(locationResult.getLastLocation());
+                mFusedLocationClient.removeLocationUpdates(this);
+            }
+        };
+        mFusedLocationClient.requestLocationUpdates(createLocationRequest(), callback, getMainLooper());
+
+
+    }
+
+    private void fetchAdress(PositionItem item) {
+        Intent intent = new Intent(MainActivity.this, FetchAddressIntentService.class);
+        intent.putExtra(FetchAddressIntentService.Constants.RECEIVER, new AddressResultReceiver(new Handler(getMainLooper()), item));
+        intent.putExtra(FetchAddressIntentService.Constants.LOCATION_DATA_EXTRA_LAT, item.getLatitude());
+        intent.putExtra(FetchAddressIntentService.Constants.LOCATION_DATA_EXTRA_LON, item.getLongitude());
+        startService(intent);
     }
 
     @Override
@@ -268,9 +359,39 @@ public class MainActivity extends AppCompatActivity {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+        if(id == R.id.import_from_clipboard) {
+            ClipData clip = clipboardManager.getPrimaryClip();
+
+            if(clip.getItemCount() == 1) {
+                CharSequence json = clip.getItemAt(0).getText();
+                PositionItem positionItem  = PositionItem.fromJson(json);
+                if(positionItem == null) {
+                    Toast.makeText(this, "No location data found", Toast.LENGTH_LONG);
+                    return false;
+                }
+                for (PositionItem p: adapter.data) {
+                    if (p.name.equals(positionItem.name)) {
+                        p.setLatitude(positionItem.getLatitude());
+                        p.setLongitude(positionItem.getLongitude());
+                        p.setAdress(positionItem.getAdress());
+                        if(p.adress == null || p.adress.trim().isEmpty()) {
+                            fetchAdress(p);
+                        }
+                        p.save();
+                        adapter.notifyDataSetChanged();
+                        return true;
+                    }
+                }
+
+                positionItem.save();
+                adapter.add(positionItem);
+
+                if(positionItem.adress == null || positionItem.adress.trim().isEmpty()) {
+                    fetchAdress(positionItem);
+                }
+            }else {
+                Toast.makeText(this, "No location data found", Toast.LENGTH_LONG);
+            }
         }
 
         return super.onOptionsItemSelected(item);
@@ -294,7 +415,24 @@ public class MainActivity extends AppCompatActivity {
             // permissions this app might request
         }
     }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        switch (requestCode) {
+            case MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION_FOR_MAP_INIT:
+                switch (resultCode) {
+                    case Activity.RESULT_OK:
+                        initMapLocation();
+                        break;
+                    case Activity.RESULT_CANCELED:
+                        // The user was asked to change settings, but chose not to
 
+                        break;
+                    default:
+                        break;
+                }
+                break;
+        }
+    }
     private class PositionAdapter extends BaseAdapter {
 
         private final List<PositionItem> data = new ArrayList<>();
@@ -372,6 +510,10 @@ public class MainActivity extends AppCompatActivity {
                                         startActivity(mapIntent);
                                     }
                                     break;
+                                case R.id.copy_item:
+                                    ClipData clip = ClipData.newPlainText(COPY_LOCATION_ITEM, item.toJson());
+                                    clipboardManager.setPrimaryClip(clip);
+                                    break;
                             }
                             return false;
                         }
@@ -396,9 +538,9 @@ public class MainActivity extends AppCompatActivity {
             void update(final PositionItem item) {
 
                 StringBuilder desc = new StringBuilder()
-                        .append(item.getLongitude())
+                        .append(item.getLatitude())
                         .append(":")
-                        .append(item.getLatitude());
+                        .append(item.getLongitude());
 
                 if(item.adress != null) {
                     desc.append("\n").append(item.getAdress());
